@@ -1,0 +1,63 @@
+
+:root{--cs-bg:#0d1117;--cs-sidebar:#0f1626;--cs-card:#161b22;--cs-border:#21262d;
+--cs-text:#e6edf3;--cs-muted:#8b949e;--cs-cyan:#00d4ff;--cs-cyan-dim:rgba(0,212,255,.1);
+--sidebar-w:230px;}
+body{background:var(--cs-bg);color:var(--cs-text);font-family:'Segoe UI',system-ui,sans-serif;}
+#sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--cs-sidebar);
+border-right:1px solid var(--cs-border);position:fixed;top:0;left:0;
+display:flex;flex-direction:column;z-index:100;}
+.sidebar-brand{padding:1.25rem 1.2rem;border-bottom:1px solid var(--cs-border);
+font-size:1.1rem;font-weight:700;color:var(--cs-cyan);display:flex;align-items:center;gap:.6rem;}
+.sidebar-brand i{font-size:1.35rem;}
+.sidebar-nav{padding:.5rem 0;flex:1;}
+.sidebar-nav a{display:flex;align-items:center;gap:.65rem;padding:.5rem 1.2rem;
+color:var(--cs-muted);text-decoration:none;font-size:.875rem;border-left:3px solid transparent;transition:all .15s;}
+.sidebar-nav a:hover,.sidebar-nav a.active{color:var(--cs-cyan);background:var(--cs-cyan-dim);border-left-color:var(--cs-cyan);}
+.sidebar-nav a i{font-size:1rem;width:18px;}
+.nav-section{padding:.9rem 1.2rem .25rem;font-size:.67rem;letter-spacing:.08em;
+text-transform:uppercase;color:var(--cs-muted);opacity:.55;}
+.sidebar-footer{padding:.8rem 1.2rem;border-top:1px solid var(--cs-border);font-size:.75rem;color:var(--cs-muted);}
+#main{margin-left:var(--sidebar-w);min-height:100vh;}
+.topbar{height:52px;background:var(--cs-sidebar);border-bottom:1px solid var(--cs-border);
+display:flex;align-items:center;padding:0 1.5rem;position:sticky;top:0;z-index:50;gap:1rem;}
+.topbar .breadcrumb{margin:0;font-size:.82rem;}
+.topbar .breadcrumb-item a{color:var(--cs-muted);text-decoration:none;}
+.topbar .breadcrumb-item.active{color:var(--cs-cyan);}
+.topbar .breadcrumb-item+.breadcrumb-item::before{color:var(--cs-muted);}
+.content{padding:1.75rem;}
+.cs-card{background:var(--cs-card);border:1px solid var(--cs-border);border-radius:.6rem;padding:1.25rem;}
+.cs-card-title{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--cs-muted);margin-bottom:.6rem;}
+.stat-value{font-size:2rem;font-weight:700;line-height:1;}
+.stat-sub{font-size:.8rem;color:var(--cs-muted);margin-top:.25rem;}
+.cs-table{--bs-table-bg:transparent;--bs-table-border-color:var(--cs-border);}
+.cs-table th{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--cs-muted);
+font-weight:500;padding:.55rem .75rem;border-bottom:1px solid var(--cs-border);}
+.cs-table td{padding:.55rem .75rem;vertical-align:middle;font-size:.875rem;}
+.cs-table tbody tr:hover{background:var(--cs-cyan-dim);}
+.cs-table a{color:var(--cs-cyan);text-decoration:none;}
+.cs-table a:hover{text-decoration:underline;}
+.risk-badge{font-size:.68rem;font-weight:700;letter-spacing:.06em;padding:.22rem .5rem;border-radius:.25rem;}
+.risk-CRITICAL{background:rgba(220,53,69,.2);color:#ea868f;}
+.risk-HIGH{background:rgba(253,126,20,.2);color:#fd7e14;}
+.risk-MEDIUM{background:rgba(13,202,240,.15);color:#0dcaf0;}
+.risk-LOW{background:rgba(25,135,84,.2);color:#75b798;}
+.risk-NONE{background:rgba(108,117,125,.15);color:#6c757d;}
+.sev-pill{display:inline-block;font-size:.65rem;font-weight:700;padding:.15rem .45rem;border-radius:.2rem;letter-spacing:.05em;}
+.sev-CRITICAL{background:#450a0a;color:#fca5a5;}
+.sev-HIGH{background:#431407;color:#fdba74;}
+.sev-MEDIUM{background:#1e3a5f;color:#7dd3fc;}
+.sev-LOW{background:#14532d;color:#86efac;}
+.chart-box{position:relative;height:220px;}
+.text-cyan{color:var(--cs-cyan)!important;}
+.border-cs{border-color:var(--cs-border)!important;}
+code.cve-id{font-size:.78rem;color:var(--cs-cyan);background:var(--cs-cyan-dim);padding:.1rem .35rem;border-radius:.2rem;}
+.port-num{font-family:'Courier New',monospace;font-size:.82rem;font-weight:600;}
+.btn-cs{background:var(--cs-cyan-dim);color:var(--cs-cyan);border:1px solid rgba(0,212,255,.4);
+font-size:.82rem;padding:.35rem .85rem;border-radius:.35rem;transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:.35rem;}
+.btn-cs:hover{background:var(--cs-cyan);color:#000;}
+.page-header{margin-bottom:1.5rem;}
+.page-header h4{margin:0;font-weight:600;}
+.page-header .sub{color:var(--cs-muted);font-size:.85rem;margin-top:.25rem;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.spin{display:inline-block;animation:spin 1.5s linear infinite;}
+@media(max-width:768px){#sidebar{display:none;}#main{margin-left:0;}}
