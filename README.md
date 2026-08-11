@@ -221,13 +221,13 @@ POST /api/reports
 
 ## 📋 Roadmap
 
-- [x] **Sprint 1** — Core: configuración, base de datos, modelos
-- [ ] **Sprint 2** — Scanner: discovery, port scan, service probe
-- [ ] **Sprint 3** — CVE Engine: NVD API, correlación, risk score
-- [ ] **Sprint 4** — Detection Rules + REST API
-- [ ] **Sprint 5** — Dashboard web (Bootstrap + Chart.js)
-- [ ] **Sprint 6** — Generador de informes HTML/PDF
-- [ ] **Sprint 7** — CLI completa + tests + documentación
+- [x] **1** — Core: configuración, base de datos, modelos
+- [x] **2** — Scanner: discovery, port scan, service probe
+- [x] **3** — CVE Engine: NVD API, correlación, risk score
+- [x] **4** — Detection Rules + REST API
+- [x] **5** — Dashboard web (Bootstrap + Chart.js)
+- [ ] **6** — Generador de informes HTML/PDF
+- [ ] **7** — CLI completa + tests + documentación
 
 ---
 
