@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Informe de Auditoría — {{ scan.name }}</title>
+<style>
+/* ══ Variables ══ */
+:root {
+  --navy:    #0d1b2a; --blue:   #1b3a6b; --cyan:  #00b4d8;
+  --crit:    #dc2626; --high:   #ea580c; --med:   #2563eb; --low:   #16a34a;
+  --text:    #1e293b; --muted:  #64748b; --border:#e2e8f0; --bg:    #f8fafc;
+}
+/* ══ Reset & Base ══ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; color: var(--text); background: #fff; line-height: 1.5; }
+h1,h2,h3,h4 { font-weight: 700; line-height: 1.2; }
+a { color: var(--cyan); }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--border); padding: .4rem .65rem; text-align: left; font-size: 9.5pt; }
+th { background: var(--bg); font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 8pt; letter-spacing: .05em; }
+tr:nth-child(even) td { background: #fafbfc; }
+
+/* ══ Page breaks ══ */
+.page-break { page-break-before: always; margin-top: 0; }
+@page { margin: 2cm 2.2cm; }
+@media print { .no-print { display: none; } }
+
+/* ══ Cover page ══ */
+.cover {
+  min-height: 100vh; background: var(--navy);
+  display: flex; flex-direction: column; padding: 0;
+  page-break-after: always;
+}
+.cover-banner {
+  background: var(--crit); color: #fff;
+  text-align: center; padding: .6rem; font-size: 9pt;
+  font-weight: 700; letter-spacing: .15em; text-transform: uppercase;
+}
+.cover-body {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 3rem 2rem;
+}
+.cover-logo { font-size: 3.5rem; margin-bottom: 1.5rem; }
+.cover-line { width: 60px; height: 3px; background: var(--cyan); margin: 1.5rem auto; border-radius: 2px; }
+.cover-title { color: #fff; font-size: 2rem; font-weight: 800; text-align: center; letter-spacing: .02em; }
+.cover-subtitle { color: #94a3b8; font-size: 1rem; text-align: center; margin-top: .5rem; }
+.cover-meta {
+  margin-top: 3rem; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1); border-radius: .75rem;
+  padding: 1.5rem 2rem; min-width: 380px;
+}
+.cover-meta-row { display: flex; justify-content: space-between; margin-bottom: .65rem; font-size: 9pt; }
+.cover-meta-row:last-child { margin-bottom: 0; }
+.cover-meta-label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 8pt; letter-spacing: .05em; }
+.cover-meta-val { color: #e2e8f0; font-weight: 500; text-align: right; max-width: 220px; }
+.cover-footer { background: rgba(0,0,0,.3); padding: 1rem 2rem; text-align: center; }
+.cover-footer span { color: #475569; font-size: 8pt; }
+
+/* ══ Section ══ */
+.section { margin-bottom: 2rem; }
+.section-title {
+  font-size: 14pt; font-weight: 700; color: var(--blue);
+  border-bottom: 2px solid var(--cyan); padding-bottom: .4rem;
+  margin-bottom: 1.2rem; margin-top: 2rem;
+}
+.section-subtitle { font-size: 11pt; font-weight: 600; margin: 1.2rem 0 .6rem; color: var(--text); }
+
+/* ══ Executive summary ══ */
+.exec-grid { display: grid; grid-template-columns: auto 1fr; gap: 2rem; align-items: start; margin-bottom: 1.5rem; }
+.risk-circle {
+  width: 120px; height: 120px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; flex-shrink: 0;
+  border: 6px solid;
+}
+.risk-score-num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+.risk-score-den { font-size: 9pt; color: inherit; opacity: .7; }
+.risk-label-pill {
+  display: inline-block; font-size: 8.5pt; font-weight: 700;
+  padding: .2rem .6rem; border-radius: .25rem; margin-top: .4rem;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.sev-critical { background:#fee2e2; color:#991b1b; }
+.sev-high     { background:#ffedd5; color:#9a3412; }
+.sev-medium   { background:#dbeafe; color:#1e40af; }
+.sev-low      { background:#dcfce7; color:#166534; }
+.sev-none     { background:#f1f5f9; color:#475569; }
+
+/* ══ Stat boxes ══ */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.5rem; }
+.stat-box {
+  background: var(--bg); border: 1px solid var(--border); border-radius: .5rem;
+  padding: .85rem; text-align: center;
+}
+.stat-num { font-size: 1.8rem; font-weight: 700; line-height: 1; color: var(--blue); }
+.stat-lbl { font-size: 8pt; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: .25rem; }
+
+/* ══ Finding cards ══ */
+.finding-card {
+  border: 1px solid var(--border); border-radius: .4rem;
+  margin-bottom: .6rem; overflow: hidden;
+}
+.finding-header {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .55rem .85rem; background: var(--bg);
+}
+.finding-body { padding: .65rem .85rem; font-size: 9pt; }
+.finding-body p { margin-bottom: .4rem; color: var(--muted); }
+.finding-body .evidence {
+  background: #0f172a; color: #a5f3fc; padding: .4rem .65rem;
+  border-radius: .25rem; font-family: 'Courier New', monospace; font-size: 8.5pt;
+  margin: .4rem 0;
+}
+.finding-body .remediation {
+  background: #f0fdf4; border-left: 3px solid var(--low);
+  padding: .4rem .65rem; border-radius: 0 .25rem .25rem 0;
+  font-size: 9pt; color: #14532d;
+}
+
+/* ══ Severity badge ══ */
+.badge {
+  display: inline-block; font-size: 7.5pt; font-weight: 700;
+  padding: .18rem .5rem; border-radius: .2rem; text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.badge-critical { background:#fee2e2; color:#991b1b; }
+.badge-high     { background:#ffedd5; color:#9a3412; }
+.badge-medium   { background:#dbeafe; color:#1e40af; }
+.badge-low      { background:#dcfce7; color:#166534; }
+
+/* ══ CVE table ══ */
+.cvss-score { font-weight: 700; }
+.cvss-critical { color: var(--crit); }
+.cvss-high     { color: var(--high); }
+.cvss-medium   { color: var(--med);  }
+.cvss-low      { color: var(--low);  }
+
+/* ══ Host card ══ */
+.host-card {
+  border: 1px solid var(--border); border-radius: .5rem;
+  margin-bottom: 1rem; overflow: hidden; break-inside: avoid;
+}
+.host-header {
+  background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .65rem 1rem;
+}
+.host-ip { font-size: 11pt; font-weight: 700; font-family: 'Courier New', monospace; }
+.host-body { padding: .75rem 1rem; }
+
+/* ══ Rec card ══ */
+.rec-card {
+  border-left: 4px solid; border-radius: .35rem;
+  padding: .75rem 1rem; margin-bottom: .65rem;
+  background: var(--bg); break-inside: avoid;
+}
+.rec-title { font-weight: 700; font-size: 10pt; margin-bottom: .3rem; }
+.rec-desc  { font-size: 9pt; color: var(--muted); margin-bottom: .4rem; }
+.rec-action { font-size: 9pt; font-style: italic; }
+
+/* ══ Severity distribution table ══ */
+.sev-bar-cell { width: 120px; }
+.sev-bar { height: 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     PORTADA
+══════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-banner">⚠ CONFIDENCIAL — USO EXCLUSIVO DEL DESTINATARIO ⚠</div>
+  <div class="cover-body">
+    <div class="cover-logo">🛡️</div>
+    <h1 class="cover-title">INFORME DE AUDITORÍA<br>DE SEGURIDAD DE RED</h1>
+    <p class="cover-subtitle">Penetration Testing Report</p>
+    <div class="cover-line"></div>
+
+    <div class="cover-meta">
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Auditoría</span>
+        <span class="cover-meta-val">{{ scan.name }}</span>
+      </div>
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Objetivo</span>
+        <span class="cover-meta-val">{{ scan.target }}</span>
+      </div>
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Fecha de inicio</span>
+        <span class="cover-meta-val">{{ scan.started_at }}</span>
+      </div>
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Fecha de finalización</span>
+        <span class="cover-meta-val">{{ scan.completed_at }}</span>
+      </div>
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Herramienta</span>
+        <span class="cover-meta-val">Ciber-Shield v1.0</span>
+      </div>
+      <div class="cover-meta-row">
+        <span class="cover-meta-label">Informe generado</span>
+        <span class="cover-meta-val">{{ generated_at }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="cover-footer">
+    <span>Este documento contiene información sensible de seguridad. Distribución restringida.</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     1. RESUMEN EJECUTIVO
+══════════════════════════════════════════════ -->
+<div class="page-break"></div>
+
+<div class="section">
+  <div class="section-title">1. Resumen Ejecutivo</div>
+
+  <div class="exec-grid">
+    <!-- Risk score circle -->
+    <div style="text-align:center">
+      <div class="risk-circle" style="border-color:{{ scan.risk_color }};color:{{ scan.risk_color }}">
+        <span class="risk-score-num">{{ scan.risk_score }}</span>
+        <span class="risk-score-den">/10</span>
+      </div>
+      <div style="margin-top:.5rem">
+        <span class="risk-label-pill sev-{{ scan.risk_label|lower }}" style="background:transparent;border:2px solid {{ scan.risk_color }};color:{{ scan.risk_color }}">
+          {{ scan.risk_label }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Summary text -->
+    <div>
+      <p style="margin-bottom:.75rem">
+        Se ha realizado una auditoría de seguridad sobre <strong>{{ scan.target }}</strong>
+        con fecha {{ scan.started_at }}, analizando un total de <strong>{{ scan.total_hosts }}</strong>
+        host(s) activo(s) y <strong>{{ scan.total_open_ports }}</strong> puerto(s) abierto(s).
+      </p>
+      <p style="margin-bottom:.75rem">
+        El análisis ha identificado <strong>{{ scan.total_vulns }}</strong> vulnerabilidade(s) CVE
+        correlacionadas con servicios expuestos y <strong>{{ scan.total_findings }}</strong> hallazgo(s)
+        de configuración de seguridad deficiente. La puntuación de riesgo global es
+        <strong style="color:{{ scan.risk_color }}">{{ scan.risk_score }}/10 ({{ scan.risk_label }})</strong>.
+      </p>
+      {% if scan.notes %}
+      <p style="color:#64748b;font-style:italic;font-size:9pt">Nota: {{ scan.notes }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stat boxes -->
+  <div class="stat-grid">
+    <div class="stat-box"><div class="stat-num">{{ scan.total_hosts }}</div><div class="stat-lbl">Hosts activos</div></div>
+    <div class="stat-box"><div class="stat-num">{{ scan.total_open_ports }}</div><div class="stat-lbl">Puertos abiertos</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:{% if vuln_by_sev.critical > 0 %}{{ '#dc2626' }}{% else %}#16a34a{% endif %}">{{ scan.total_vulns }}</div><div class="stat-lbl">CVEs encontrados</div></div>
+    <div class="stat-box"><div class="stat-num" style="color:{% if find_by_sev.critical + find_by_sev.high > 0 %}{{ '#ea580c' }}{% else %}#16a34a{% endif %}">{{ scan.total_findings }}</div><div class="stat-lbl">Hallazgos</div></div>
+  </div>
+
+  <!-- Severity breakdown -->
+  <div class="section-subtitle">Distribución por severidad</div>
+  <table>
+    <thead><tr><th>Severidad</th><th>CVEs</th><th>Hallazgos</th><th>Hosts afectados</th><th class="sev-bar-cell">Proporción CVEs</th></tr></thead>
+    <tbody>
+    {% set total_v = vuln_by_sev.critical + vuln_by_sev.high + vuln_by_sev.medium + vuln_by_sev.low %}
+    {% for sev, color in [('critical','#dc2626'),('high','#ea580c'),('medium','#2563eb'),('low','#16a34a')] %}
+    <tr>
+      <td><span class="badge badge-{{ sev }}">{{ sev|upper }}</span></td>
+      <td><strong>{{ vuln_by_sev[sev] }}</strong></td>
+      <td>{{ find_by_sev.get(sev, 0) }}</td>
+      <td>
+        {% if sev == 'critical' %}{{ stats.hosts_critical }}
+        {% elif sev == 'high' %}{{ stats.hosts_high }}
+        {% elif sev == 'medium' %}{{ stats.hosts_medium }}
+        {% else %}{{ stats.hosts_low }}{% endif %}
+      </td>
+      <td>
+        <div class="sev-bar" style="background:#e2e8f0">
+          <div class="sev-bar" style="width:{{ ((vuln_by_sev[sev]/total_v*100) if total_v > 0 else 0)|round|int }}%;background:{{ color }}"></div>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     2. ALCANCE Y METODOLOGÍA
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">2. Alcance y Metodología</div>
+  <table>
+    <tbody>
+      <tr><td style="width:30%;font-weight:600;background:#f8fafc">Objetivo</td><td><code>{{ scan.target }}</code></td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Rango de puertos</td><td>{{ scan.port_range }}</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Inicio</td><td>{{ scan.started_at }}</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Finalización</td><td>{{ scan.completed_at }}</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Duración</td><td>{{ scan.duration }}</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Metodología</td><td>PTES (Penetration Testing Execution Standard)</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Técnicas</td><td>TCP Connect Scan, Service/Version Detection, OS Fingerprinting, CVE Correlation (NVD API), Detection Rules Engine</td></tr>
+      <tr><td style="font-weight:600;background:#f8fafc">Herramienta</td><td>Ciber-Shield v1.0 — github.com/Constan4/Ciber-Shield</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     3. HOSTS DESCUBIERTOS
+══════════════════════════════════════════════ -->
+<div class="section page-break">
+  <div class="section-title">3. Hosts Descubiertos</div>
+  {% if hosts %}
+  <table>
+    <thead><tr><th>IP</th><th>Hostname</th><th>Sistema Operativo</th><th>Puertos</th><th>CVEs</th><th>Hallazgos</th><th>Risk</th></tr></thead>
+    <tbody>
+    {% for h in hosts %}
+    <tr>
+      <td><strong style="font-family:monospace">{{ h.ip }}</strong></td>
+      <td>{{ h.hostname or '—' }}</td>
+      <td style="font-size:9pt">{{ h.os[:35] }}</td>
+      <td>{{ h.open_ports }}</td>
+      <td>{{ h.vuln_count }}</td>
+      <td>{{ h.finding_count }}</td>
+      <td><strong style="color:{{ h.risk_color }}">{{ h.risk_score }} ({{ h.risk_label }})</strong></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--muted)">No se encontraron hosts activos en el objetivo.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════
+     4. VULNERABILIDADES CVE
+══════════════════════════════════════════════ -->
+<div class="section page-break">
+  <div class="section-title">4. Vulnerabilidades (CVE)</div>
+  {% if vulns %}
+  <p style="font-size:9pt;color:var(--muted);margin-bottom:.75rem">
+    Se muestran las {{ vulns|length }} vulnerabilidades más críticas, ordenadas por puntuación CVSS descendente.
+  </p>
+  <table>
+    <thead><tr><th>CVE ID</th><th>CVSS</th><th>Severidad</th><th>Host</th><th>Puerto</th><th>Servicio</th><th>Descripción</th></tr></thead>
+    <tbody>
+    {% for v in vulns %}
+    <tr>
+      <td><strong>{{ v.cve_id }}</strong></td>
+      <td class="cvss-score cvss-{{ v.severity }}">{{ '%.1f'|format(v.cvss_score) }}</td>
+      <td><span class="badge badge-{{ v.severity }}">{{ v.severity|upper }}</span></td>
+      <td style="font-family:monospace;font-size:9pt">{{ v.host_ip }}</td>
+      <td>{{ v.port_number }}/tcp</td>
+      <td style="font-size:9pt">{{ v.service }} {{ v.version[:20] }}</td>
+      <td style="font-size:8.5pt;color:var(--muted);max-width:200px">{{ v.description[:120] }}{% if v.description|length > 120 %}…{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--muted)">No se encontraron vulnerabilidades CVE. Ejecuta el análisis de CVEs para obtener resultados.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════
+     5. HALLAZGOS DE CONFIGURACIÓN
+══════════════════════════════════════════════ -->
+<div class="section page-break">
+  <div class="section-title">5. Hallazgos de Configuración</div>
+  {% if findings %}
+    {% for f in findings %}
+    <div class="finding-card">
+      <div class="finding-header">
+        <span class="badge badge-{{ f.severity }}">{{ f.severity|upper }}</span>
+        <span style="font-weight:700;font-size:10pt">{{ f.rule_name }}</span>
+        <span style="margin-left:auto;font-family:monospace;font-size:9pt;color:#94a3b8">{{ f.rule_id }} · {{ f.host_ip }}</span>
+      </div>
+      <div class="finding-body">
+        <p>{{ f.description[:300] }}</p>
+        {% if f.evidence %}
+        <div class="evidence">{{ f.evidence[:200] }}</div>
+        {% endif %}
+        {% if f.remediation %}
+        <div class="remediation"><strong>Remediación:</strong> {{ f.remediation[:250] }}</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p style="color:var(--muted)">No se registraron hallazgos de configuración.</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════
+     6. RECOMENDACIONES
+══════════════════════════════════════════════ -->
+<div class="section page-break">
+  <div class="section-title">6. Recomendaciones</div>
+  <p style="font-size:9pt;color:var(--muted);margin-bottom:1rem">
+    Las siguientes acciones se presentan en orden de prioridad (mayor riesgo primero).
+    Se recomienda abordarlas dentro de los plazos indicados según la severidad.
+  </p>
+
+  {% if recommendations %}
+  {% set sev_colors = {'critical':'#dc2626','high':'#ea580c','medium':'#2563eb','low':'#16a34a'} %}
+  {% for rec in recommendations %}
+  <div class="rec-card" style="border-left-color:{{ sev_colors.get(rec.severity, '#94a3b8') }}">
+    <div class="rec-title">
+      <span class="badge badge-{{ rec.severity }}">{{ rec.severity|upper }}</span>
+      &nbsp;{{ rec.title }}
+    </div>
+    {% if rec.description %}
+    <div class="rec-desc">{{ rec.description[:250] }}</div>
+    {% endif %}
+    <div class="rec-action">✓ {{ rec.action[:300] }}</div>
+    {% if rec.hosts %}
+    <div style="font-size:8.5pt;color:var(--muted);margin-top:.3rem">
+      Hosts afectados: {{ rec.hosts[:5]|join(', ') }}{% if rec.hosts|length > 5 %} +{{ rec.hosts|length - 5 }} más{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p style="color:var(--muted)">Sin recomendaciones generadas. Ejecuta el análisis completo (CVEs + detección).</p>
+  {% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════
+     7. APÉNDICE — DETALLE POR HOST
+══════════════════════════════════════════════ -->
+<div class="section page-break">
+  <div class="section-title">7. Apéndice — Detalle técnico por host</div>
+  {% for h in hosts %}
+  <div class="host-card">
+    <div class="host-header">
+      <div>
+        <span class="host-ip">{{ h.ip }}</span>
+        {% if h.hostname %}<span style="color:#94a3b8;font-size:9pt;margin-left:.75rem">{{ h.hostname }}</span>{% endif %}
+      </div>
+      <div style="text-align:right">
+        <span style="color:#e2e8f0;font-size:9pt">{{ h.os[:30] }}</span><br>
+        <strong style="color:{{ h.risk_color }}">Risk {{ h.risk_score }} ({{ h.risk_label }})</strong>
+      </div>
+    </div>
+    <div class="host-body">
+      {% if h.ports %}
+      <table style="margin-bottom:0">
+        <thead><tr><th>Puerto</th><th>Protocolo</th><th>Servicio</th><th>Versión</th><th>⚠</th></tr></thead>
+        <tbody>
+        {% for p in h.ports %}
+        <tr>
+          <td style="font-family:monospace;font-weight:600">{{ p.number }}</td>
+          <td>{{ p.protocol }}</td>
+          <td>{{ p.service }}</td>
+          <td style="font-size:8.5pt;color:var(--muted)">{{ p.version[:40] or '—' }}</td>
+          <td>{{ '⚠' if p.dangerous else '' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);font-size:9pt">Sin puertos abiertos</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PIE DE INFORME
+══════════════════════════════════════════════ -->
+<div style="margin-top:3rem;padding-top:1rem;border-top:2px solid var(--border);text-align:center;color:var(--muted);font-size:8pt">
+  <p>Informe generado por <strong>Ciber-Shield v1.0</strong> el {{ generated_at }}</p>
+  <p style="margin-top:.25rem">Este informe es confidencial. Solo para uso autorizado del destinatario.</p>
+  <p style="margin-top:.25rem">github.com/Constan4/Ciber-Shield</p>
+</div>
+
+</body>
+</html>
