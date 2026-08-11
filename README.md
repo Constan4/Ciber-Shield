@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white"/>
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge"/>
+  <img src="https://github.com/Constan4/Ciber-Shield/actions/workflows/tests.yml/badge.svg" alt="Tests"/>
 </p>
 
 <p align="center">
@@ -17,7 +18,7 @@
 
 ## ¿Qué es Ciber-Shield?
 
-Ciber-Shield es una **plataforma de auditoría de seguridad** que automatiza el ciclo completo de análisis de una red o sistema:
+Ciber-Shield automatiza el ciclo completo de auditoría de seguridad:
 
 ```
   [ Red objetivo ]
@@ -42,14 +43,39 @@ Ciber-Shield es una **plataforma de auditoría de seguridad** que automatiza el 
 
 | Módulo | Función |
 |--------|---------|
-| **Scanner** | Descubrimiento de hosts, escaneo de puertos TCP/UDP, detección de servicios y OS |
-| **CVE Engine** | Correlación automática de servicios con vulnerabilidades reales (NVD API) |
-| **Risk Scorer** | Puntuación de riesgo basada en CVSS 3.1 a nivel de puerto, host y auditoría |
-| **Detection Rules** | Motor de reglas para detectar configuraciones peligrosas (SMBv1, FTP anónimo...) |
-| **REST API** | API completa para integrar Ciber-Shield en pipelines CI/CD o herramientas externas |
-| **Dashboard Web** | Interfaz visual con gráficas de riesgo, listado de hosts y hallazgos |
-| **Informes** | Generación de informes HTML/PDF profesionales listos para entregar al cliente |
-| **CLI** | Interfaz de línea de comandos completa con output enriquecido (Rich) |
+| **Scanner** | Discovery de hosts, escaneo TCP/UDP, detección de servicios y OS fingerprinting |
+| **CVE Engine** | Correlación con NVD API v2.0, caché en disco, rate limiting automático |
+| **Risk Scorer** | Puntuación CVSS 3.1 a nivel de puerto, host y auditoría completa |
+| **Detection Rules** | 18+ reglas: Telnet, SMBv1, Redis/MongoDB sin auth, Docker API, RDP, etc. |
+| **REST API** | API Flask completa — integrable en pipelines CI/CD |
+| **Dashboard Web** | Dark theme Bootstrap 5 + Chart.js — gráficas de riesgo interactivas |
+| **Informes** | HTML/PDF profesionales listos para entregar al cliente |
+| **Tests** | pytest con 60+ tests unitarios e integración |
+
+---
+
+## 🚀 Inicio rápido
+
+```bash
+git clone https://github.com/Constan4/Ciber-Shield.git
+cd Ciber-Shield
+pip install -r requirements.txt
+python3 app.py init-db
+
+# Escanear tu red
+python3 app.py scan --target 192.168.1.0/24 --ports common
+
+# Ver resultados
+python3 app.py show-scan --id 1
+
+# Dashboard web
+python3 app.py web   # → http://localhost:5000
+
+# Generar informe
+python3 app.py report --id 1 --format html
+```
+
+📖 Ver **[QUICKSTART.md](QUICKSTART.md)** para la guía completa.
 
 ---
 
@@ -57,150 +83,51 @@ Ciber-Shield es una **plataforma de auditoría de seguridad** que automatiza el 
 
 ```
 Ciber-Shield/
-│
-├── core/                   # Núcleo: config, BD, modelos, logger
-│   ├── config.py           # Gestión de configuración (.env)
-│   ├── database.py         # SQLAlchemy engine + sesiones
-│   ├── models.py           # Modelos ORM (Scan, Host, Port, Vulnerability...)
-│   └── logger.py           # Sistema de logging centralizado
-│
-├── scanner/                # Módulo de escaneo de red
-│   ├── discovery.py        # Ping sweep / host discovery
-│   ├── port_scanner.py     # TCP/UDP port scanning
-│   ├── service_probe.py    # Detección de servicios y versiones
-│   └── orchestrator.py     # Coordinación del pipeline de escaneo
-│
-├── vuln/                   # Motor de vulnerabilidades
-│   ├── nvd_client.py       # Cliente de la NVD API v2.0
-│   ├── correlator.py       # Correlación servicio → CVE
-│   └── risk_scorer.py      # Puntuación de riesgo CVSS-based
-│
-├── detect/                 # Motor de reglas de detección
-│   ├── rules.py            # Definición de reglas (YAML)
-│   └── engine.py           # Motor de evaluación de reglas
-│
-├── report/                 # Generación de informes
-│   ├── html_generator.py   # Informe HTML profesional
-│   ├── pdf_generator.py    # Conversión a PDF
-│   └── templates/          # Plantillas Jinja2 del informe
-│
-├── api/                    # REST API (Flask Blueprints)
-│   ├── routes_scan.py      # /api/scans
-│   ├── routes_host.py      # /api/hosts
-│   └── routes_report.py    # /api/reports
-│
-├── web/                    # Dashboard web
-│   ├── templates/          # HTML con Jinja2 + Bootstrap 5
-│   └── static/             # CSS, JS, Chart.js
-│
-├── cli/                    # Interfaz de línea de comandos
-│   └── commands.py         # Comandos Click + Rich
-│
-├── data/                   # Base de datos SQLite (auto-generada)
-├── logs/                   # Logs de la aplicación
-├── reports/                # Informes generados
-│
-├── requirements.txt
-├── .env.example
-└── app.py                  # Punto de entrada principal
+├── core/         # Config, BD (SQLAlchemy), modelos, logger
+├── scanner/      # Discovery → Port scan → Service probe → Orchestrator
+├── vuln/         # NVD client → CVE correlator → Risk scorer
+├── detect/       # 18+ reglas de detección + motor de evaluación
+├── report/       # Generador HTML/PDF profesional
+├── api/          # REST API Flask (Blueprints)
+├── web/          # Dashboard Bootstrap 5 + Chart.js
+├── tests/        # pytest — 60+ tests unitarios e integración
+└── app.py        # CLI Click + punto de entrada Flask
 ```
 
 ---
 
-## 🚀 Instalación
+## 🖥️ CLI
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/Constan4/Ciber-Shield.git
-cd Ciber-Shield
-
-# 2. Crear entorno virtual
-python3 -m venv venv
-source venv/bin/activate        # Linux/macOS
-# venv\Scripts\activate         # Windows
-
-# 3. Instalar dependencias
-pip install -r requirements.txt
-
-# 4. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tu API key de NVD (opcional pero recomendado)
-
-# 5. Inicializar la base de datos
-python3 app.py init-db
-
-# 6a. Lanzar el dashboard web
-python3 app.py web
-
-# 6b. O usar la CLI directamente
-python3 app.py scan --target 192.168.1.0/24 --name "Auditoría LAN"
+python3 app.py scan     --target IP  --ports common    # Escaneo completo
+python3 app.py analyze  --id N                         # Análisis CVE
+python3 app.py detect   --id N                         # Motor de reglas
+python3 app.py report   --id N --format html           # Generar informe
+python3 app.py list-scans                              # Listar auditorías
+python3 app.py show-scan --id N                        # Ver detalle
+python3 app.py web                                     # Dashboard web
 ```
-
----
-
-## 🖥️ Uso — CLI
-
-```bash
-# Escaneo completo de una red
-python3 app.py scan --target 192.168.1.0/24 --name "Red corporativa" --ports 1-1024
-
-# Escaneo de un host específico con todos los puertos
-python3 app.py scan --target 192.168.1.41 --name "Servidor web" --ports all
-
-# Listar auditorías guardadas
-python3 app.py list-scans
-
-# Ver detalle de una auditoría
-python3 app.py show-scan --id 1
-
-# Generar informe HTML de una auditoría
-python3 app.py report --scan-id 1 --format html
-
-# Generar informe PDF
-python3 app.py report --scan-id 1 --format pdf
-```
-
----
-
-## 🌐 Uso — Dashboard Web
-
-```bash
-python3 app.py web
-# Abrir http://localhost:5000 en el navegador
-```
-
-El dashboard incluye:
-- **Vista general:** resumen de auditorías, estadísticas y score de riesgo
-- **Mapa de hosts:** todos los hosts descubiertos con su nivel de riesgo
-- **Detalle de host:** puertos, servicios, CVEs y hallazgos de detección
-- **Centro de informes:** generar y descargar informes
-- **API Explorer:** documentación interactiva de la API REST
-
----
 
 ## 🔌 REST API
 
 ```bash
-# Iniciar una nueva auditoría
-POST /api/scans
-{
-  "name": "Auditoría red interna",
-  "target": "192.168.1.0/24",
-  "port_range": "1-1024"
-}
+GET  /api/health                    # Estado de la API
+GET  /api/scans                     # Listar auditorías
+POST /api/scans                     # Crear y lanzar auditoría
+GET  /api/scans/{id}/summary        # Resumen de riesgo
+GET  /api/scans/{id}/hosts          # Hosts descubiertos
+GET  /api/hosts/{id}/full           # Host completo (puertos+CVEs+hallazgos)
+POST /api/scans/{id}/report         # Generar informe
+```
 
-# Obtener estado de una auditoría
-GET /api/scans/{id}
+---
 
-# Listar hosts de una auditoría
-GET /api/scans/{id}/hosts
+## 🧪 Tests
 
-# Obtener vulnerabilidades de un host
-GET /api/hosts/{id}/vulnerabilities
-
-# Generar informe
-POST /api/reports
-{ "scan_id": 1, "format": "html" }
+```bash
+make test        # Todos los tests
+make test-fast   # Solo unitarios (sin API)
+pytest tests/ -v # Con detalle completo
 ```
 
 ---
@@ -210,7 +137,7 @@ POST /api/reports
 | Capa | Tecnología |
 |------|-----------|
 | Backend | Python 3.10+, Flask 3.0 |
-| ORM / BD | SQLAlchemy 2.0, SQLite (dev) / PostgreSQL (prod) |
+| ORM / BD | SQLAlchemy 2.0, SQLite |
 | Frontend | Bootstrap 5, Chart.js, Jinja2 |
 | CLI | Click, Rich |
 | Informes | WeasyPrint, Jinja2 |
@@ -221,13 +148,17 @@ POST /api/reports
 
 ## 📋 Roadmap
 
-- [x] **1** — Core: configuración, base de datos, modelos
-- [x] **2** — Scanner: discovery, port scan, service probe
-- [x] **3** — CVE Engine: NVD API, correlación, risk score
-- [x] **4** — Detection Rules + REST API
-- [x] **5** — Dashboard web (Bootstrap + Chart.js)
-- [ ] **6** — Generador de informes HTML/PDF
-- [ ] **7** — CLI completa + tests + documentación
+- [x] **Core** — Configuración, BD, modelos, logger
+- [x] **Scanner** — Discovery, port scan, service probe, orchestrator
+- [x] **CVE Engine** — NVD API, correlación, risk scoring
+- [x] **Detection Rules** — 18+ reglas + motor de evaluación
+- [x] **REST API** — Flask Blueprints completos
+- [x] **Dashboard Web** — Bootstrap 5 + Chart.js
+- [x] **Report Generator** — HTML/PDF profesional
+- [x] **Tests** — pytest con 60+ tests
+- [ ] **Docker** — Contenedor para despliegue rápido
+- [ ] **CVSS v4.0** — Soporte del nuevo estándar
+- [ ] **Active Directory** — Módulo específico para entornos AD
 
 ---
 
@@ -238,4 +169,4 @@ POST /api/reports
 
 ---
 
-*Desarrollado por [Constan4](https://github.com/Constan4)*
+*Desarrollado por [Constan Millán](https://github.com/Constan4) — Estudiante de Ciberseguridad*
