@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Nueva auditoría — Ciber-Shield{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Nueva auditoría</li>{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h4><i class="bi bi-plus-circle-fill text-cyan me-2"></i>Nueva auditoría</h4>
+  <div class="sub">Configura y lanza un escaneo de seguridad completo</div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="cs-card">
+      <div id="form-area">
+        <!-- Nombre -->
+        <div class="mb-3">
+          <label class="form-label" style="font-size:.82rem;color:var(--cs-muted)">
+            <i class="bi bi-tag me-1"></i>Nombre de la auditoría *
+          </label>
+          <input id="f-name" type="text" class="form-control"
+                 style="background:#0d1117;border-color:#30363d;color:#e6edf3"
+                 placeholder="Ej: Auditoría red corporativa Q4"
+                 value="Auditoría {{ '{now}' }}">
+        </div>
+
+        <!-- Target -->
+        <div class="mb-3">
+          <label class="form-label" style="font-size:.82rem;color:var(--cs-muted)">
+            <i class="bi bi-bullseye me-1"></i>Objetivo (target) *
+          </label>
+          <input id="f-target" type="text" class="form-control"
+                 style="background:#0d1117;border-color:#30363d;color:#e6edf3"
+                 placeholder="192.168.1.0/24 | 192.168.1.41 | servidor.empresa.com">
+          <div class="form-text text-muted" style="font-size:.75rem">
+            IP individual, rango CIDR o hostname
+          </div>
+        </div>
+
+        <!-- Port range -->
+        <div class="mb-3">
+          <label class="form-label" style="font-size:.82rem;color:var(--cs-muted)">
+            <i class="bi bi-door-open me-1"></i>Rango de puertos
+          </label>
+          <div class="d-flex gap-2 flex-wrap">
+            {% for val, lbl in [('common','Comunes'), ('1-1024','1-1024'), ('1-10000','Top 10k'), ('all','Todos (lento)')] %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="ports" id="p{{ val }}"
+                     value="{{ val }}" {{ 'checked' if val=='common' else '' }}>
+              <label class="form-check-label" for="p{{ val }}" style="font-size:.82rem">{{ lbl }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          <input id="f-ports-custom" type="text" class="form-control mt-2"
+                 style="background:#0d1117;border-color:#30363d;color:#e6edf3;display:none"
+                 placeholder="Ej: 22,80,443,3389 o 1-65535">
+        </div>
+
+        <!-- Options -->
+        <div class="mb-4">
+          <label class="form-label" style="font-size:.82rem;color:var(--cs-muted)">Opciones</label>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label" style="font-size:.78rem;color:var(--cs-muted)">Timeout (seg)</label>
+              <input id="f-timeout" type="number" class="form-control form-control-sm"
+                     style="background:#0d1117;border-color:#30363d;color:#e6edf3"
+                     value="1.0" min="0.1" max="30" step="0.1">
+            </div>
+            <div class="col-6">
+              <label class="form-label" style="font-size:.78rem;color:var(--cs-muted)">Hilos</label>
+              <input id="f-threads" type="number" class="form-control form-control-sm"
+                     style="background:#0d1117;border-color:#30363d;color:#e6edf3"
+                     value="150" min="1" max="500">
+            </div>
+          </div>
+          <div class="d-flex gap-3 mt-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="opt-vuln" checked>
+              <label class="form-check-label" for="opt-vuln" style="font-size:.82rem">
+                <i class="bi bi-bug me-1"></i>Correlación CVEs (NVD)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="opt-detect" checked>
+              <label class="form-check-label" for="opt-detect" style="font-size:.82rem">
+                <i class="bi bi-shield-check me-1"></i>Motor de detección
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notas -->
+        <div class="mb-4">
+          <label class="form-label" style="font-size:.82rem;color:var(--cs-muted)">
+            <i class="bi bi-chat-text me-1"></i>Notas (opcional)
+          </label>
+          <textarea id="f-notes" class="form-control" rows="2"
+                    style="background:#0d1117;border-color:#30363d;color:#e6edf3;font-size:.85rem"
+                    placeholder="Contexto de la auditoría, cliente, alcance..."></textarea>
+        </div>
+
+        <div id="scan-error" class="alert alert-danger d-none" style="font-size:.85rem"></div>
+
+        <div class="d-flex gap-2">
+          <button id="btn-start" class="btn-cs" onclick="startScan()">
+            <i class="bi bi-play-fill"></i> Lanzar auditoría
+          </button>
+          <a href="{{ url_for('web.index') }}" class="btn btn-sm btn-outline-secondary">Cancelar</a>
+        </div>
+      </div>
+
+      <!-- Progress area (hidden initially) -->
+      <div id="progress-area" class="d-none">
+        <div class="text-center py-3">
+          <div class="mb-3"><i class="bi bi-shield-shaded text-cyan spin" style="font-size:2.5rem"></i></div>
+          <h5 id="prog-title" class="mb-1">Iniciando escaneo...</h5>
+          <div id="prog-sub" class="text-muted small mb-3">Creando la auditoría</div>
+          <div class="progress mb-3" style="height:6px;background:#21262d">
+            <div id="prog-bar" class="progress-bar bg-info" style="width:20%;transition:width .5s"></div>
+          </div>
+          <div id="prog-link" class="d-none mt-3">
+            <a id="prog-href" href="#" class="btn-cs">
+              <i class="bi bi-eye"></i> Ver auditoría
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Rellenar nombre con fecha actual
+const now = new Date();
+document.getElementById('f-name').value =
+  'Auditoría ' + now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+
+// Toggle puertos custom
+document.querySelectorAll('input[name=ports]').forEach(r => {
+  r.addEventListener('change', () => {
+    const custom = document.getElementById('f-ports-custom');
+    custom.style.display = r.value === 'custom' ? '' : 'none';
+  });
+});
+
+async function startScan() {
+  const name    = document.getElementById('f-name').value.trim();
+  const target  = document.getElementById('f-target').value.trim();
+  const timeout = parseFloat(document.getElementById('f-timeout').value) || 1.0;
+  const threads = parseInt(document.getElementById('f-threads').value) || 150;
+  const runVuln = document.getElementById('opt-vuln').checked;
+  const runDet  = document.getElementById('opt-detect').checked;
+  const notes   = document.getElementById('f-notes').value.trim();
+
+  let ports = document.querySelector('input[name=ports]:checked')?.value || 'common';
+  if (ports === 'custom') {
+    ports = document.getElementById('f-ports-custom').value.trim() || 'common';
+  }
+
+  const errDiv = document.getElementById('scan-error');
+  errDiv.classList.add('d-none');
+
+  if (!name)   { errDiv.textContent = 'El nombre es obligatorio'; errDiv.classList.remove('d-none'); return; }
+  if (!target) { errDiv.textContent = 'El objetivo es obligatorio'; errDiv.classList.remove('d-none'); return; }
+
+  // Mostrar área de progreso
+  document.getElementById('form-area').classList.add('d-none');
+  document.getElementById('progress-area').classList.remove('d-none');
+
+  const setProgress = (pct, title, sub) => {
+    document.getElementById('prog-bar').style.width = pct + '%';
+    document.getElementById('prog-title').textContent = title;
+    document.getElementById('prog-sub').textContent = sub;
+  };
+
+  setProgress(15, 'Creando auditoría...', 'Registrando en la base de datos');
+
+  try {
+    const resp = await fetch('/api/scans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, target, port_range: ports, timeout, max_workers: threads,
+                             run_vuln: runVuln, run_detect: runDet, notes }),
+    });
+
+    const data = await resp.json();
+    if (!resp.ok || data.status !== 'ok') {
+      throw new Error(data.message || 'Error al crear la auditoría');
+    }
+
+    const scanId = data.data.id;
+    setProgress(40, 'Escaneo en marcha...', 'Discovery y port scan ejecutándose en segundo plano');
+
+    // Polling de estado
+    const pollInterval = setInterval(async () => {
+      try {
+        const sr = await fetch('/api/scans/' + scanId);
+        const sd = await sr.json();
+        if (sd.status === 'ok') {
+          const scan = sd.data;
+          if (scan.status === 'completed') {
+            clearInterval(pollInterval);
+            setProgress(100, '¡Auditoría completada!',
+              scan.total_hosts + ' hosts · ' + scan.total_open_ports + ' puertos · ' +
+              scan.total_vulns + ' CVEs · Risk: ' + (scan.risk_score||0).toFixed(1));
+            document.getElementById('prog-link').classList.remove('d-none');
+            document.getElementById('prog-href').href = '/scans/' + scanId;
+          } else if (scan.status === 'failed') {
+            clearInterval(pollInterval);
+            setProgress(100, 'Error en el escaneo', scan.notes || 'Consulta los logs');
+          } else if (scan.status === 'running') {
+            const hosts = scan.total_hosts;
+            setProgress(65, 'Analizando...', hosts + ' hosts descubiertos');
+          }
+        }
+      } catch(e) {}
+    }, 3000);
+
+    // Link directo inmediato
+    document.getElementById('prog-link').classList.remove('d-none');
+    document.getElementById('prog-href').href = '/scans/' + scanId;
+
+  } catch(err) {
+    document.getElementById('form-area').classList.remove('d-none');
+    document.getElementById('progress-area').classList.add('d-none');
+    errDiv.textContent = err.message;
+    errDiv.classList.remove('d-none');
+  }
+}
+</script>
+{% endblock %}
