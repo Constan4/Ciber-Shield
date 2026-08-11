@@ -32,11 +32,13 @@ def create_app():
 
 
 def _register_blueprints(app):
-    from api.routes_scan import bp as scan_bp
-    from api.routes_host import bp as host_bp
-    app.register_blueprint(scan_bp, url_prefix="/api")
-    app.register_blueprint(host_bp, url_prefix="/api")
-    logger.info("API blueprints registrados: /api/scans, /api/hosts, /api/health")
+    from api.routes_scan   import bp as scan_bp
+    from api.routes_host   import bp as host_bp
+    from api.routes_report import bp as report_bp
+    app.register_blueprint(scan_bp,   url_prefix="/api")
+    app.register_blueprint(host_bp,   url_prefix="/api")
+    app.register_blueprint(report_bp, url_prefix="/api")
+    logger.info("API blueprints registrados: /api/scans, /api/hosts, /api/reports, /api/health")
     try:
         from web.views import bp as web_bp
         app.register_blueprint(web_bp)
@@ -264,6 +266,31 @@ def cmd_show_scan(scan_id):
     finally:
         session.close()
 
+
+
+@cli.command("report")
+@click.option("--id", "scan_id", required=True, type=int, help="ID de la auditoría")
+@click.option("--format", "fmt", default="html", type=click.Choice(["html","pdf","both"]))
+@click.option("--output", default=None, help="Ruta de salida personalizada")
+def cmd_report(scan_id, fmt, output):
+    """Genera un informe HTML/PDF de una auditoría completada."""
+    from pathlib import Path
+    from report import run_report, is_weasyprint_available
+    init_db(echo=False)
+    click.echo(f"
+  📄 Generando informe — Scan #{scan_id} ({fmt.upper()})")
+    if fmt in ('pdf','both') and not is_weasyprint_available():
+        click.echo(click.style("  ⚠  WeasyPrint no instalado. Generando solo HTML.", fg="yellow"))
+        click.echo("     Instalar: pip install WeasyPrint")
+        fmt = "html"
+    try:
+        out_path = Path(output) if output else None
+        path = run_report(scan_id, fmt=fmt)
+        click.echo(click.style(f"  ✓  Informe: {path}", fg="green"))
+        click.echo(f"  Abrir: file://{path.resolve()}
+")
+    except Exception as e:
+        click.echo(click.style(f"  ✗  {e}", fg="red"))
 
 @cli.command("web")
 @click.option("--host",  default=Config.FLASK_HOST)
