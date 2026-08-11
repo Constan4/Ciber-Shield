@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Host {{ host.ip }} — Ciber-Shield{% endblock %}
+{% block breadcrumb %}
+{% if scan %}<li class="breadcrumb-item"><a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}">Auditoría #{{ scan.id }}</a></li>{% endif %}
+<li class="breadcrumb-item active">{{ host.ip }}</li>
+{% endblock %}
+
+{% block content %}
+<!-- HEADER -->
+<div class="cs-card mb-4">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <i class="bi bi-pc-display text-cyan" style="font-size:1.4rem"></i>
+        <h4 class="mb-0">{{ host.ip }}</h4>
+        {% if host.hostname %}<span class="text-muted small">{{ host.hostname }}</span>{% endif %}
+      </div>
+      <div class="text-muted small">
+        {% if host.os %}<span><i class="bi bi-window me-1"></i>{{ host.os }}{% if host.os_confidence %} ({{ host.os_confidence }}%){% endif %}</span>{% endif %}
+        {% if host.mac %}&nbsp;·&nbsp;<span><i class="bi bi-ethernet me-1"></i>{{ host.mac }}{% if host.vendor %} — {{ host.vendor }}{% endif %}</span>{% endif %}
+      </div>
+    </div>
+    <div class="text-center">
+      <div style="font-size:2.2rem;font-weight:700;line-height:1"
+           class="{% if (host.risk_score or 0)>=9 %}text-danger{% elif (host.risk_score or 0)>=7 %}text-warning{% elif (host.risk_score or 0)>=4 %}text-info{% else %}text-success{% endif %}">
+        {{ '%.1f'|format(host.risk_score or 0) }}
+      </div>
+      <div class="risk-badge risk-{{ host._risk_label }}">{{ host._risk_label }}</div>
+    </div>
+  </div>
+  <div class="row g-3 mt-3 pt-3" style="border-top:1px solid var(--cs-border)">
+    <div class="col-4 text-center">
+      <div style="font-size:1.3rem;font-weight:700;color:#a5f3fc">{{ ports_data|length }}</div>
+      <div class="text-muted" style="font-size:.75rem">Puertos abiertos</div>
+    </div>
+    <div class="col-4 text-center">
+      <div style="font-size:1.3rem;font-weight:700;color:#fca5a5">{{ all_vulns|length }}</div>
+      <div class="text-muted" style="font-size:.75rem">CVEs</div>
+    </div>
+    <div class="col-4 text-center">
+      <div style="font-size:1.3rem;font-weight:700;color:#fdba74">{{ findings|length }}</div>
+      <div class="text-muted" style="font-size:.75rem">Hallazgos</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- PUERTOS -->
+  <div class="col-lg-7">
+    <div class="cs-card">
+      <div class="cs-card-title mb-3"><i class="bi bi-door-open me-1"></i>Puertos y servicios</div>
+      {% if ports_data %}
+      <div class="accordion accordion-flush" id="portsAccordion">
+      {% for pd in ports_data %}
+        <div class="accordion-item" style="background:transparent;border:1px solid var(--cs-border);border-radius:.4rem;margin-bottom:.4rem">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed py-2 px-3"
+                    style="background:var(--cs-card);color:var(--cs-text);border-radius:.4rem;font-size:.875rem"
+                    type="button" data-bs-toggle="collapse"
+                    data-bs-target="#port{{ pd.port.id }}">
+              <span class="port-num me-3">{{ pd.port.number }}/{{ pd.port.protocol }}</span>
+              <span class="me-2" style="font-size:.82rem">{{ pd.port.service_name or '?' }}</span>
+              {% if pd.port.service_version %}
+              <span class="text-muted" style="font-size:.75rem">{{ pd.port.service_version[:30] }}</span>
+              {% endif %}
+              <span class="ms-auto me-2">
+                {% if pd.port.is_dangerous %}<i class="bi bi-exclamation-triangle-fill text-warning me-2" title="Puerto peligroso"></i>{% endif %}
+                {% if pd.vulns %}
+                <span class="risk-badge risk-{{ pd.risk_label }}">{{ '%.1f'|format(pd.max_cvss) }}</span>
+                {% endif %}
+              </span>
+            </button>
+          </h2>
+          <div id="port{{ pd.port.id }}" class="accordion-collapse collapse">
+            <div class="accordion-body py-2 px-3" style="font-size:.82rem">
+              {% if pd.port.service_banner %}
+              <div class="mb-2 p-2 rounded" style="background:#0d1117;font-family:monospace;font-size:.75rem;color:#8b949e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                {{ pd.port.service_banner[:120] }}
+              </div>
+              {% endif %}
+              {% if pd.vulns %}
+                <div class="text-muted mb-1" style="font-size:.72rem">{{ pd.vulns|length }} CVE(s) asociados:</div>
+                {% for v in pd.vulns[:5] %}
+                <div class="d-flex align-items-center gap-2 py-1" style="border-top:1px solid var(--cs-border)">
+                  <code class="cve-id">{{ v.cve_id }}</code>
+                  <span class="sev-pill sev-{{ (v.severity.value if v.severity else 'LOW')|upper }}">{{ (v.severity.value if v.severity else 'LOW')|upper }}</span>
+                  <strong style="color:#e6edf3">{{ '%.1f'|format(v.cvss_score or 0) }}</strong>
+                  <span class="text-muted" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ v.description[:80] if v.description else '' }}</span>
+                </div>
+                {% endfor %}
+              {% else %}
+                <div class="text-muted">Sin CVEs correlacionados</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-3 text-muted">Sin puertos abiertos</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- FINDINGS -->
+  <div class="col-lg-5">
+    <div class="cs-card mb-3">
+      <div class="cs-card-title mb-3"><i class="bi bi-shield-exclamation me-1"></i>Hallazgos de detección</div>
+      {% if findings %}
+        {% for f in findings %}
+        <div class="mb-2 p-2 rounded" style="background:#0d1117;border:1px solid var(--cs-border)">
+          <div class="d-flex gap-2">
+            <span class="badge bg-{{ f._color }}" style="font-size:.65rem;height:fit-content">{{ (f.severity.value if f.severity else 'LOW')|upper }}</span>
+            <div>
+              <div style="font-size:.82rem;font-weight:600">{{ f.rule_name }}</div>
+              <div style="font-size:.75rem;color:#a5f3fc;margin-top:.2rem">{{ f.evidence[:100] if f.evidence else '' }}</div>
+              <div style="font-size:.72rem;color:var(--cs-muted);margin-top:.3rem">{{ f.remediation[:120] if f.remediation else '' }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-3 text-muted">
+          <i class="bi bi-check-circle text-success"></i> Sin hallazgos
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- MINI CVE CHART -->
+    {% if all_vulns %}
+    <div class="cs-card">
+      <div class="cs-card-title mb-2">CVEs por severidad</div>
+      <div class="chart-box" style="height:160px"><canvas id="chartHostVuln"></canvas></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if all_vulns %}
+const vs = {{ vuln_sev | safe }};
+new Chart(document.getElementById('chartHostVuln'),{
+  type:'doughnut',
+  data:{labels:['Critical','High','Medium','Low'],
+    datasets:[{data:[vs.critical,vs.high,vs.medium,vs.low],
+      backgroundColor:['#ef4444','#f97316','#3b82f6','#22c55e'],borderWidth:0}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'right',labels:{color:'#8b949e',boxWidth:8,font:{size:10}}}}}
+});
+{% endif %}
+</script>
+{% endblock %}
