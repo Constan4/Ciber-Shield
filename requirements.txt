@@ -1,0 +1,33 @@
+# ══════════════════════════════════════════════════════════════
+#   Ciber-Shield — Dependencias
+#   pip install -r requirements.txt
+# ══════════════════════════════════════════════════════════════
+
+# ── Web Framework ──────────────────────────────────────────────
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-CORS==4.0.0
+
+# ── Base de datos ──────────────────────────────────────────────
+SQLAlchemy==2.0.30
+
+# ── Configuración ──────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── HTTP / APIs externas ───────────────────────────────────────
+requests==2.31.0
+urllib3==2.2.1
+
+# ── CLI ────────────────────────────────────────────────────────
+click==8.1.7
+rich==13.7.1
+
+# ── Informes (HTML → PDF) ──────────────────────────────────────
+Jinja2==3.1.4
+WeasyPrint==62.3       # Necesita libcairo y libpango en el sistema
+                        # Ubuntu/Debian: sudo apt install libcairo2-dev libpango1.0-dev
+                        # macOS:         brew install cairo pango
+
+# ── Utilidades ─────────────────────────────────────────────────
+tabulate==0.9.0         # Tablas en CLI
+python-dateutil==2.9.0  # Manejo de fechas
