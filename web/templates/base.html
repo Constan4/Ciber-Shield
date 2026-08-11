@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{% block title %}Ciber-Shield{% endblock %}</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="/static/css/main.css" rel="stylesheet">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div id="sidebar">
+  <div class="sidebar-brand"><i class="bi bi-shield-lock-fill"></i> Ciber-Shield</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Principal</div>
+    <a href="{{ url_for('web.index') }}" class="{{ 'active' if request.endpoint=='web.index' else '' }}">
+      <i class="bi bi-grid-1x2-fill"></i> Dashboard</a>
+    <a href="{{ url_for('web.new_scan') }}" class="{{ 'active' if request.endpoint=='web.new_scan' else '' }}">
+      <i class="bi bi-plus-circle-fill"></i> Nueva auditoría</a>
+    <div class="nav-section">API</div>
+    <a href="/api/health" target="_blank"><i class="bi bi-activity"></i> Health</a>
+    <a href="/api/scans"  target="_blank"><i class="bi bi-braces"></i> /api/scans</a>
+  </nav>
+  <div class="sidebar-footer"><span class="badge bg-success me-1" style="font-size:.65rem">v1.0</span>Ciber-Shield</div>
+</div>
+<div id="main">
+  <div class="topbar">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{{ url_for('web.index') }}">Dashboard</a></li>
+        {% block breadcrumb %}{% endblock %}
+      </ol>
+    </nav>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      {% if active_scans is defined and active_scans %}
+        <span class="badge bg-warning text-dark"><i class="bi bi-arrow-repeat spin"></i> {{ active_scans }} activo</span>
+      {% endif %}
+      <a href="{{ url_for('web.new_scan') }}" class="btn-cs"><i class="bi bi-plus-lg"></i> Nuevo scan</a>
+    </div>
+  </div>
+  <div class="content">{% block content %}{% endblock %}</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/dashboard.js"></script>
+{% block scripts %}{% endblock %}
+</body></html>
