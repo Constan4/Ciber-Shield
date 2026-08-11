@@ -1,0 +1,61 @@
+# ══════════════════════════════════════════════════════════════
+#   .gitignore — Ciber-Shield
+# ══════════════════════════════════════════════════════════════
+
+# ── Variables de entorno (NUNCA subir el .env real) ────────────
+.env
+*.env
+!.env.example
+
+# ── Base de datos (generada automáticamente) ───────────────────
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Logs ───────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Informes generados ─────────────────────────────────────────
+reports/
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Entorno virtual ────────────────────────────────────────────
+venv/
+env/
+.venv/
+ENV/
+
+# ── Tests ──────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── IDEs ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Sistema operativo ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Temporales ─────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
