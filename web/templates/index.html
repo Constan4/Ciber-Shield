@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Ciber-Shield{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4><i class="bi bi-grid-1x2-fill text-cyan me-2"></i>Dashboard</h4>
+    <div class="sub">Resumen global de auditorías de seguridad</div>
+  </div>
+  <a href="{{ url_for('web.new_scan') }}" class="btn-cs">
+    <i class="bi bi-plus-circle"></i> Nueva auditoría
+  </a>
+</div>
+
+<!-- ── STAT CARDS ── -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-clipboard-data me-1"></i>Auditorías</div>
+      <div class="stat-value text-cyan">{{ total_scans }}</div>
+      <div class="stat-sub">Total registradas</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-pc-display me-1"></i>Hosts</div>
+      <div class="stat-value" style="color:#a5f3fc">{{ total_hosts }}</div>
+      <div class="stat-sub">Dispositivos descubiertos</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-door-open me-1"></i>Puertos</div>
+      <div class="stat-value" style="color:#86efac">{{ total_open_ports }}</div>
+      <div class="stat-sub">Puertos abiertos</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-bug me-1"></i>CVEs</div>
+      <div class="stat-value" style="color:#fca5a5">{{ total_vulns }}</div>
+      <div class="stat-sub">Vulnerabilidades encontradas</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHARTS ── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-5">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-pie-chart me-1"></i>CVEs por severidad</div>
+      <div class="chart-box"><canvas id="chartSeverity"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="cs-card h-100">
+      <div class="cs-card-title"><i class="bi bi-bar-chart me-1"></i>Risk score por auditoría</div>
+      <div class="chart-box"><canvas id="chartRisk"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCANS TABLE ── -->
+<div class="cs-card">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="cs-card-title mb-0"><i class="bi bi-list-ul me-1"></i>Auditorías</div>
+    <input type="text" id="scanSearch" class="form-control form-control-sm w-auto"
+           placeholder="Buscar..." style="background:#0d1117;border-color:#30363d;color:#e6edf3;font-size:.8rem;">
+  </div>
+  {% if scans %}
+  <div class="table-responsive">
+    <table class="table cs-table mb-0" id="scansTable">
+      <thead>
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Objetivo</th>
+          <th>Estado</th><th>Hosts</th><th>CVEs</th>
+          <th>Hallazgos</th><th>Risk</th><th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for scan in scans %}
+        <tr>
+          <td class="text-muted">#{{ scan.id }}</td>
+          <td><a href="{{ url_for('web.scan_detail', scan_id=scan.id) }}">{{ scan.name[:40] }}</a></td>
+          <td><code style="font-size:.75rem;color:#8b949e">{{ scan.target }}</code></td>
+          <td>
+            {% set sc = {'completed':'success','running':'warning','failed':'danger','pending':'secondary'} %}
+            <span class="badge bg-{{ sc.get(scan.status.value,'secondary') }}" style="font-size:.7rem">
+              {{ scan.status.value }}
+            </span>
+          </td>
+          <td>{{ scan.total_hosts }}</td>
+          <td>{{ scan.total_vulns }}</td>
+          <td>{{ scan.total_findings }}</td>
+          <td>
+            <span class="risk-badge risk-{{ scan._risk_label }}">
+              {{ '%.1f'|format(scan.risk_score or 0) }}
+            </span>
+          </td>
+          <td class="text-muted" style="font-size:.78rem;white-space:nowrap">
+            {{ scan.created_at.strftime('%d/%m/%Y') if scan.created_at else '—' }}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox" style="font-size:3rem;opacity:.3"></i>
+    <p class="mt-3">No hay auditorías aún.</p>
+    <a href="{{ url_for('web.new_scan') }}" class="btn-cs">Crear la primera</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sevData  = {{ chart_severity | safe }};
+const riskData = {{ chart_risk     | safe }};
+
+const COLORS = {
+  critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#22c55e',
+  grid: 'rgba(255,255,255,.06)', text: '#8b949e'
+};
+
+// Doughnut — severidad
+new Chart(document.getElementById('chartSeverity'), {
+  type: 'doughnut',
+  data: {
+    labels: sevData.labels,
+    datasets: [{
+      data: sevData.data,
+      backgroundColor: [COLORS.critical, COLORS.high, COLORS.medium, COLORS.low],
+      borderWidth: 0, hoverOffset: 6
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'right', labels: { color: COLORS.text, boxWidth: 10, font: {size:11} } } }
+  }
+});
+
+// Bar — risk scores
+new Chart(document.getElementById('chartRisk'), {
+  type: 'bar',
+  data: {
+    labels: riskData.labels,
+    datasets: [{
+      label: 'Risk Score',
+      data: riskData.data,
+      backgroundColor: riskData.data.map(v =>
+        v>=9 ? COLORS.critical : v>=7 ? COLORS.high : v>=4 ? COLORS.medium : COLORS.low
+      ),
+      borderRadius: 4, borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      y: { min:0, max:10, grid:{color:COLORS.grid}, ticks:{color:COLORS.text, font:{size:10}} },
+      x: { grid:{display:false}, ticks:{color:COLORS.text, font:{size:10}} }
+    },
+    plugins: { legend:{display:false} }
+  }
+});
+
+// Búsqueda en tabla
+document.getElementById('scanSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#scansTable tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}
