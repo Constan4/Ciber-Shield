@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Auditoría #{{ scan.id }} — Ciber-Shield{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Auditoría #{{ scan.id }}</li>
+{% endblock %}
+
+{% block content %}
+<!-- ── HEADER ── -->
+<div class="cs-card mb-4">
+  <div class="d-flex flex-wrap align-items-start gap-3">
+    <div class="flex-grow-1">
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <h4 class="mb-0">{{ scan.name }}</h4>
+        {% set sc = {'completed':'success','running':'warning','failed':'danger','pending':'secondary'} %}
+        <span class="badge bg-{{ sc.get(scan.status.value,'secondary') }}">{{ scan.status.value }}</span>
+      </div>
+      <div class="text-muted small">
+        <i class="bi bi-bullseye me-1"></i>{{ scan.target }}
+        &nbsp;·&nbsp;<i class="bi bi-hdd-rack me-1"></i>Puertos: {{ scan.port_range }}
+        {% if scan.created_at %}&nbsp;·&nbsp;<i class="bi bi-calendar3 me-1"></i>{{ scan.created_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+      </div>
+    </div>
+    <!-- Risk badge grande -->
+    <div class="text-center" style="min-width:110px">
+      <div style="font-size:2.5rem;font-weight:700;line-height:1"
+           class="{% if (scan.risk_score or 0)>=9 %}text-danger{% elif (scan.risk_score or 0)>=7 %}text-warning{% elif (scan.risk_score or 0)>=4 %}text-info{% else %}text-success{% endif %}">
+        {{ '%.1f'|format(scan.risk_score or 0) }}
+      </div>
+      <div class="risk-badge risk-{{ scan._risk_label }}">{{ scan._risk_label }}</div>
+    </div>
+  </div>
+  <!-- Mini stats -->
+  <div class="row g-3 mt-3 pt-3" style="border-top:1px solid var(--cs-border)">
+    <div class="col-6 col-md-3 text-center">
+      <div style="font-size:1.4rem;font-weight:700;color:#a5f3fc">{{ scan.total_hosts }}</div>
+      <div class="text-muted" style="font-size:.75rem">Hosts activos</div>
+    </div>
+    <div class="col-6 col-md-3 text-center">
+      <div style="font-size:1.4rem;font-weight:700;color:#86efac">{{ scan.total_open_ports }}</div>
+      <div class="text-muted" style="font-size:.75rem">Puertos abiertos</div>
+    </div>
+    <div class="col-6 col-md-3 text-center">
+      <div style="font-size:1.4rem;font-weight:700;color:#fca5a5">{{ scan.total_vulns }}</div>
+      <div class="text-muted" style="font-size:.75rem">CVEs encontrados</div>
+    </div>
+    <div class="col-6 col-md-3 text-center">
+      <div style="font-size:1.4rem;font-weight:700;color:#fdba74">{{ scan.total_findings }}</div>
+      <div class="text-muted" style="font-size:.75rem">Hallazgos</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHARTS ── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-5">
+    <div class="cs-card h-100">
+      <div class="cs-card-title">Distribución de riesgo — Hosts</div>
+      <div class="chart-box"><canvas id="chartHostRisk"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="cs-card h-100">
+      <div class="cs-card-title">CVEs por severidad</div>
+      <div class="chart-box"><canvas id="chartVulnSev"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TABS ── -->
+<ul class="nav nav-tabs mb-3" style="border-bottom-color:var(--cs-border)">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-hosts"
+       style="color:var(--cs-muted);border:none">
+      <i class="bi bi-pc-display me-1"></i>Hosts ({{ hosts|length }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-vulns"
+       style="color:var(--cs-muted);border:none">
+      <i class="bi bi-bug me-1"></i>CVEs ({{ all_vulns|length }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-findings"
+       style="color:var(--cs-muted);border:none">
+      <i class="bi bi-exclamation-triangle me-1"></i>Hallazgos ({{ all_findings|length }})
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <!-- HOSTS TAB -->
+  <div class="tab-pane fade show active" id="tab-hosts">
+    <div class="cs-card">
+    {% if hosts %}
+      <div class="table-responsive">
+        <table class="table cs-table mb-0">
+          <thead><tr><th>IP</th><th>Hostname</th><th>OS</th>
+            <th>Puertos</th><th>CVEs</th><th>Hallazgos</th><th>Risk</th></tr></thead>
+          <tbody>
+          {% for host in hosts %}
+          <tr>
+            <td><a href="{{ url_for('web.host_detail', host_id=host.id) }}">
+              <i class="bi bi-pc-display me-1" style="font-size:.8rem"></i>{{ host.ip }}</a></td>
+            <td class="text-muted" style="font-size:.8rem">{{ host.hostname or '—' }}</td>
+            <td class="text-muted" style="font-size:.78rem">{{ host.os[:30] if host.os else '—' }}</td>
+            <td>{{ host.open_ports }}</td>
+            <td>{{ host.vuln_count }}</td>
+            <td>{{ host.finding_count }}</td>
+            <td>
+              <span class="risk-badge risk-{{ host._risk_label }}">
+                {{ '%.1f'|format(host.risk_score or 0) }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center py-4 text-muted">Sin hosts descubiertos</div>
+    {% endif %}
+    </div>
+  </div>
+
+  <!-- CVEs TAB -->
+  <div class="tab-pane fade" id="tab-vulns">
+    <div class="cs-card">
+    {% if all_vulns %}
+      <div class="table-responsive">
+        <table class="table cs-table mb-0">
+          <thead><tr><th>CVE</th><th>CVSS</th><th>Severidad</th>
+            <th>Host</th><th>Puerto</th><th>Servicio</th></tr></thead>
+          <tbody>
+          {% for v in all_vulns %}
+          <tr>
+            <td><code class="cve-id">{{ v.cve_id }}</code></td>
+            <td><strong>{{ '%.1f'|format(v.cvss_score or 0) }}</strong></td>
+            <td><span class="sev-pill sev-{{ (v.severity or 'low')|upper }}">{{ (v.severity or 'LOW')|upper }}</span></td>
+            <td><a href="{{ url_for('web.host_detail', host_id=v.host_id) }}">{{ v.host_ip }}</a></td>
+            <td class="port-num">{{ v.port_number }}</td>
+            <td class="text-muted" style="font-size:.8rem">{{ v.service or '—' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="text-center py-4 text-muted">
+        <i class="bi bi-check-circle text-success" style="font-size:2rem"></i>
+        <p class="mt-2">No se encontraron CVEs. Ejecuta el análisis con:<br>
+        <code>python3 app.py analyze --id {{ scan.id }}</code></p>
+      </div>
+    {% endif %}
+    </div>
+  </div>
+
+  <!-- FINDINGS TAB -->
+  <div class="tab-pane fade" id="tab-findings">
+    <div class="cs-card">
+    {% if all_findings %}
+      <div class="d-flex flex-column gap-2">
+      {% for f in all_findings %}
+        <div class="p-3 rounded" style="background:#0d1117;border:1px solid var(--cs-border)">
+          <div class="d-flex align-items-start gap-2">
+            <span class="badge bg-{{ f._color }} mt-1" style="font-size:.65rem;white-space:nowrap">
+              {{ (f.severity or 'LOW')|upper }}
+            </span>
+            <div class="flex-grow-1">
+              <div class="fw-semibold" style="font-size:.88rem">
+                <span style="color:var(--cs-muted);font-size:.75rem">{{ f.rule_id }}</span>
+                &nbsp;{{ f.rule_name }}
+              </div>
+              <div class="text-muted mt-1" style="font-size:.8rem">
+                <i class="bi bi-pc-display me-1"></i>
+                <a href="{{ url_for('web.host_detail', host_id=f.host_id) }}"
+                   class="text-muted">{{ f.host_ip }}</a>
+              </div>
+              {% if f.evidence %}
+              <div class="mt-1" style="font-size:.8rem;color:#a5f3fc">
+                <i class="bi bi-search me-1"></i>{{ f.evidence[:120] }}
+              </div>
+              {% endif %}
+              {% if f.remediation %}
+              <div class="mt-2 pt-2" style="border-top:1px solid var(--cs-border);font-size:.78rem;color:var(--cs-muted)">
+                <i class="bi bi-wrench me-1"></i>{{ f.remediation[:180] }}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-4 text-muted">
+        <i class="bi bi-check-circle text-success" style="font-size:2rem"></i>
+        <p class="mt-2">Sin hallazgos de detección.</p>
+      </div>
+    {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const C = {crit:'#ef4444',high:'#f97316',med:'#3b82f6',low:'#22c55e',none:'#6b7280',grid:'rgba(255,255,255,.05)',txt:'#8b949e'};
+const hr = {{ chart_host_risk | safe }};
+const vs = {{ chart_vuln_sev  | safe }};
+
+new Chart(document.getElementById('chartHostRisk'), {
+  type:'doughnut', data:{labels:hr.labels,
+    datasets:[{data:hr.data,backgroundColor:[C.crit,C.high,C.med,C.low,C.none],borderWidth:0,hoverOffset:5}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'right',labels:{color:C.txt,boxWidth:10,font:{size:10}}}}}
+});
+
+new Chart(document.getElementById('chartVulnSev'), {
+  type:'bar', data:{labels:vs.labels,
+    datasets:[{data:vs.data,backgroundColor:[C.crit,C.high,C.med,C.low],borderRadius:4,borderWidth:0}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    scales:{y:{grid:{color:C.grid},ticks:{color:C.txt,font:{size:10}}},x:{grid:{display:false},ticks:{color:C.txt,font:{size:10}}}},
+    plugins:{legend:{display:false}}}
+});
+
+// Activar tab links con color cyan
+document.querySelectorAll('.nav-link').forEach(l=>{
+  l.addEventListener('show.bs.tab', ()=>{l.style.color='var(--cs-cyan)';});
+  l.addEventListener('hide.bs.tab', ()=>{l.style.color='var(--cs-muted)';});
+  if(l.classList.contains('active')) l.style.color='var(--cs-cyan)';
+});
+</script>
+{% endblock %}
