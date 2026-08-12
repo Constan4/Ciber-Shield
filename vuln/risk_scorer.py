@@ -1,25 +1,10 @@
 """
-vuln/risk_scorer.py — Calculadora de riesgo de seguridad basada en CVSS 3.1.
+vuln/risk_scorer.py — Calculadora de riesgo basada en CVSS 3.1.
 
-Calcula puntuaciones de riesgo a tres niveles:
-
-    Puerto (Port):
-        risk_score = max(cvss_score de sus vulnerabilidades)
-        Si tiene puertos peligrosos sin CVEs → puntuación base de 3.0
-
-    Host:
-        risk_score = 0.70 * max_port_score
-                   + 0.20 * mean_port_score
-                   + 0.10 * dangerous_port_bonus
-        Capped a 10.0
-
-    Scan (auditoría completa):
-        risk_score = 0.60 * max_host_score
-                   + 0.25 * weighted_severity_index
-                   + 0.15 * exposure_ratio
-        Capped a 10.0
-
-Tras el cálculo, se actualizan los campos risk_score en la BD.
+Niveles:
+    Puerto:  max(cvss_score de sus vulnerabilidades)
+    Host:    0.70 * max_port + 0.20 * mean_port + 0.10 * dangerous_bonus
+    Scan:    0.60 * max_host + 0.25 * weighted_severity + 0.15 * exposure_ratio
 """
 
 from __future__ import annotations
@@ -28,50 +13,25 @@ import statistics
 from typing import Dict, List, NamedTuple, Optional
 
 from core.database import get_session
-from core.logger import get_logger
-from core.models import Host, Port, Scan, Severity, Vulnerability
+from core.logger   import get_logger
+from core.models   import Host, Port, Scan, Severity, Vulnerability
 
 logger = get_logger(__name__)
 
-
-# ══════════════════════════════════════════════════════════════
-# CONSTANTES
-# ══════════════════════════════════════════════════════════════
-
-#: Peso de cada nivel de severidad para el índice ponderado
-SEVERITY_WEIGHTS: Dict[str, float] = {
-    "CRITICAL": 1.00,
-    "HIGH":     0.70,
-    "MEDIUM":   0.40,
-    "LOW":      0.15,
-    "NONE":     0.00,
-    "UNKNOWN":  0.10,
+SEVERITY_WEIGHTS = {
+    "critical": 1.00, "high": 0.70,
+    "medium":   0.40, "low":  0.15,
+    "none":     0.00, "unknown": 0.10,
 }
 
-#: Bonus de riesgo (0–10) para puertos peligrosos sin CVE conocido
-DANGEROUS_PORT_SCORES: Dict[int, float] = {
-    23:    8.0,   # Telnet — tráfico sin cifrar
-    21:    5.0,   # FTP — sin cifrar
-    135:   6.0,   # MSRPC
-    139:   7.0,   # NetBIOS SMBv1
-    445:   8.5,   # SMB — EternalBlue familia
-    1433:  7.0,   # MSSQL
-    1521:  7.0,   # Oracle DB
-    2375:  9.0,   # Docker API sin TLS
-    3389:  7.5,   # RDP
-    5900:  6.5,   # VNC (frecuentemente sin auth)
-    6379:  8.0,   # Redis sin auth por defecto
-    9200:  7.5,   # Elasticsearch sin auth
-    27017: 8.0,   # MongoDB sin auth
+DANGEROUS_PORT_SCORES = {
+    23: 8.0, 21: 5.0, 135: 6.0, 139: 7.0, 445: 8.5,
+    1433: 7.0, 1521: 7.0, 2375: 9.0, 3389: 7.5,
+    5900: 6.5, 6379: 8.0, 9200: 7.5, 27017: 8.0,
 }
 
-
-# ══════════════════════════════════════════════════════════════
-# DTOs DE RESULTADO
-# ══════════════════════════════════════════════════════════════
 
 class ScanRiskSummary(NamedTuple):
-    """Resumen completo del análisis de riesgo de una auditoría."""
     scan_id:        int
     risk_score:     float
     severity:       str
@@ -88,269 +48,195 @@ class ScanRiskSummary(NamedTuple):
     exposed_dangerous_ports: int
 
     @property
-    def as_dict(self) -> dict:
+    def as_dict(self):
         return self._asdict()
 
 
-# ══════════════════════════════════════════════════════════════
-# MOTOR DE PUNTUACIÓN
-# ══════════════════════════════════════════════════════════════
-
 class RiskScorer:
-    """
-    Calcula y actualiza las puntuaciones de riesgo en la base de datos.
-
-    Uso:
-        scorer = RiskScorer()
-        summary = scorer.score_scan(scan_id=1)
-        print(f"Riesgo global: {summary.risk_score:.1f}/10")
-    """
-
-    # ── Nivel Puerto ─────────────────────────────────────────
 
     def score_port(self, port_id: int) -> float:
-        """
-        Calcula el risk_score de un puerto individual.
+        """Risk score de un puerto = max CVSS de sus vulns."""
+        try:
+            with get_session() as session:
+                vulns = session.query(Vulnerability).filter_by(port_id=port_id).all()
+                port  = session.get(Port, port_id)
 
-        El score es el máximo CVSS de sus vulnerabilidades.
-        Si es un puerto peligroso sin vulns, se asigna un score base.
+                if vulns:
+                    scores = [v.cvss_score for v in vulns if v.cvss_score is not None]
+                    score  = max(scores) if scores else 0.0
+                elif port and port.number in DANGEROUS_PORT_SCORES:
+                    score = DANGEROUS_PORT_SCORES[port.number]
+                else:
+                    score = 0.0
 
-        Args:
-            port_id: ID del puerto.
-
-        Returns:
-            Puntuación de riesgo 0.0–10.0.
-        """
-        with get_session() as session:
-            port = session.get(Port, port_id)
-            if not port:
-                return 0.0
-
-            vulns = (
-                session.query(Vulnerability)
-                .filter_by(port_id=port_id)
-                .all()
-            )
-
-            if vulns:
-                scores = [v.cvss_score for v in vulns if v.cvss_score is not None]
-                score  = max(scores) if scores else 0.0
-            elif port.number in DANGEROUS_PORT_SCORES:
-                # Puerto peligroso expuesto sin CVEs conocidos aún
-                score = DANGEROUS_PORT_SCORES[port.number]
-            else:
-                score = 0.0
-
-            score = round(min(score, 10.0), 2)
-            port.risk_score = score  # Actualizar si el modelo lo tiene
-            session.commit()
-
-        return score
-
-    # ── Nivel Host ───────────────────────────────────────────
+                return round(min(score, 10.0), 2)
+        except Exception as e:
+            logger.debug("score_port error port_id=" + str(port_id) + ": " + str(e))
+            return 0.0
 
     def score_host(self, host_id: int) -> float:
-        """
-        Calcula el risk_score de un host basado en sus puertos.
+        """Risk score de un host basado en sus puertos y vulnerabilidades."""
+        try:
+            # Obtener puertos abiertos del host
+            with get_session() as session:
+                ports = (session.query(Port)
+                         .filter_by(host_id=host_id, state="open")
+                         .all())
+                port_ids     = [p.id for p in ports]
+                port_numbers = [p.number for p in ports]
 
-        Fórmula:
-            score = 0.70 * max_port
-                  + 0.20 * mean_port
-                  + 0.10 * dangerous_bonus
-
-        Args:
-            host_id: ID del host.
-
-        Returns:
-            Puntuación de riesgo 0.0–10.0.
-        """
-        with get_session() as session:
-            host = session.get(Host, host_id)
-            if not host:
+            if not port_ids:
                 return 0.0
 
-            ports = (
-                session.query(Port)
-                .filter_by(host_id=host_id, state="open")
-                .all()
-            )
+            # Calcular score por puerto
+            port_scores = []
+            for pid in port_ids:
+                s = self.score_port(pid)
+                if s > 0:
+                    port_scores.append(s)
 
-        if not ports:
-            return 0.0
-
-        # Calcular scores individuales de puertos
-        port_scores = [self.score_port(p.id) for p in ports]
-        port_scores = [s for s in port_scores if s > 0]
-
-        if not port_scores:
-            return 0.0
-
-        max_port  = max(port_scores)
-        mean_port = statistics.mean(port_scores)
-
-        # Bonus por puertos peligrosos expuestos
-        dangerous_count = sum(
-            1 for p in ports if p.number in DANGEROUS_PORT_SCORES
-        )
-        dangerous_bonus = min(dangerous_count * 0.5, 3.0)
-
-        score = (
-            0.70 * max_port
-            + 0.20 * mean_port
-            + 0.10 * dangerous_bonus
-        )
-        score = round(min(score, 10.0), 2)
-
-        # Actualizar en BD
-        with get_session() as session:
-            host = session.get(Host, host_id)
-            if host:
-                host.risk_score    = score
-                host.vuln_count    = sum(
-                    session.query(Vulnerability)
-                    .join(Port)
-                    .filter(Port.host_id == host_id)
-                    .count()
-                    for _ in [1]
+            if not port_scores:
+                # Ningún CVE pero puede haber puertos peligrosos
+                dangerous_raw = sum(
+                    DANGEROUS_PORT_SCORES.get(n, 0)
+                    for n in port_numbers
+                    if n in DANGEROUS_PORT_SCORES
                 )
-                host.finding_count = 0  # Se actualiza en detect/
-                session.commit()
+                score = min(dangerous_raw * 0.3, 5.0)
+            else:
+                max_port  = max(port_scores)
+                mean_port = statistics.mean(port_scores)
+                dangerous_count  = sum(1 for n in port_numbers if n in DANGEROUS_PORT_SCORES)
+                dangerous_bonus  = min(dangerous_count * 0.5, 3.0)
+                score = 0.70 * max_port + 0.20 * mean_port + 0.10 * dangerous_bonus
 
-        logger.debug(f"Host #{host_id} risk_score = {score:.2f}")
-        return score
+            score = round(min(score, 10.0), 2)
 
-    # ── Nivel Scan ───────────────────────────────────────────
+            # Contar CVEs del host (query simple sin join)
+            vuln_count = 0
+            try:
+                with get_session() as session:
+                    for pid in port_ids:
+                        vuln_count += session.query(Vulnerability).filter_by(port_id=pid).count()
+            except Exception:
+                pass
+
+            # Actualizar host en BD
+            try:
+                with get_session() as session:
+                    host = session.get(Host, host_id)
+                    if host:
+                        host.risk_score = score
+                        host.vuln_count = vuln_count
+                        session.commit()
+            except Exception as e:
+                logger.debug("Error actualizando host risk_score: " + str(e))
+
+            logger.debug("Host #" + str(host_id) + " risk_score = " + str(score))
+            return score
+
+        except Exception as e:
+            logger.debug("score_host error host_id=" + str(host_id) + ": " + str(e))
+            return 0.0
 
     def score_scan(self, scan_id: int) -> ScanRiskSummary:
-        """
-        Calcula el risk_score global de una auditoría y devuelve el resumen completo.
+        """Risk score global de una auditoria."""
+        try:
+            with get_session() as session:
+                scan = session.get(Scan, scan_id)
+                if not scan:
+                    return self._empty_summary(scan_id)
+                hosts = session.query(Host).filter_by(scan_id=scan_id).all()
+                host_ids = [h.id for h in hosts]
 
-        Fórmula:
-            score = 0.60 * max_host_score
-                  + 0.25 * weighted_severity_index
-                  + 0.15 * exposure_ratio
-
-        Args:
-            scan_id: ID de la auditoría.
-
-        Returns:
-            ScanRiskSummary con todas las métricas calculadas.
-        """
-        with get_session() as session:
-            scan = session.get(Scan, scan_id)
-            if not scan:
+            if not host_ids:
                 return self._empty_summary(scan_id)
 
-            hosts = (
-                session.query(Host)
-                .filter_by(scan_id=scan_id)
-                .all()
+            # Calcular scores de todos los hosts
+            host_scores = [self.score_host(hid) for hid in host_ids]
+
+            # Recopilar severidades de CVEs (queries simples)
+            vuln_sev_list = []
+            with get_session() as session:
+                for hid in host_ids:
+                    port_ids = [p.id for p in session.query(Port).filter_by(host_id=hid).all()]
+                    for pid in port_ids:
+                        vulns = session.query(Vulnerability).filter_by(port_id=pid).all()
+                        for v in vulns:
+                            sev = v.severity.value if v.severity else "low"
+                            vuln_sev_list.append(sev)
+
+            # Metricas de distribucion
+            def count_sev(level):
+                return sum(1 for s in vuln_sev_list if s == level)
+
+            max_host     = max(host_scores) if host_scores else 0.0
+            total_vulns  = len(vuln_sev_list)
+
+            if total_vulns > 0:
+                weighted_sum = sum(SEVERITY_WEIGHTS.get(s, 0.1) for s in vuln_sev_list)
+                weighted_idx = min(weighted_sum / total_vulns * 10, 10.0)
+            else:
+                weighted_idx = 0.0
+
+            hosts_exposed  = sum(1 for s in host_scores if s > 0)
+            exposure_ratio = (hosts_exposed / len(host_scores) * 10) if host_scores else 0.0
+
+            global_score = (0.60 * max_host + 0.25 * weighted_idx + 0.15 * exposure_ratio)
+            global_score = round(min(global_score, 10.0), 2)
+            severity     = Severity.from_cvss(global_score).value.upper()
+
+            # Contar puertos peligrosos
+            dangerous_total = 0
+            try:
+                with get_session() as session:
+                    for hid in host_ids:
+                        dangerous_total += (session.query(Port)
+                                            .filter_by(host_id=hid, state="open", is_dangerous=True)
+                                            .count())
+            except Exception:
+                pass
+
+            summary = ScanRiskSummary(
+                scan_id        = scan_id,
+                risk_score     = global_score,
+                severity       = severity,
+                total_hosts    = len(host_ids),
+                hosts_critical = sum(1 for s in host_scores if s >= 9.0),
+                hosts_high     = sum(1 for s in host_scores if 7.0 <= s < 9.0),
+                hosts_medium   = sum(1 for s in host_scores if 4.0 <= s < 7.0),
+                hosts_low      = sum(1 for s in host_scores if 0 < s < 4.0),
+                total_vulns    = total_vulns,
+                vulns_critical = count_sev("critical"),
+                vulns_high     = count_sev("high"),
+                vulns_medium   = count_sev("medium"),
+                vulns_low      = count_sev("low"),
+                exposed_dangerous_ports = dangerous_total,
             )
-            host_ids = [h.id for h in hosts]
 
-        if not host_ids:
+            # Actualizar Scan en BD
+            try:
+                with get_session() as session:
+                    scan = session.get(Scan, scan_id)
+                    if scan:
+                        scan.risk_score  = global_score
+                        scan.total_vulns = total_vulns
+                        session.commit()
+            except Exception as e:
+                logger.debug("Error actualizando scan risk_score: " + str(e))
+
+            logger.info(
+                "Scan #" + str(scan_id) + " risk_score=" + str(global_score) +
+                " (" + severity + ") — " + str(total_vulns) + " CVE(s)"
+            )
+            return summary
+
+        except Exception as e:
+            logger.debug("score_scan error: " + str(e))
             return self._empty_summary(scan_id)
-
-        # ── Calcular scores de todos los hosts ────────────────
-        host_scores = [self.score_host(hid) for hid in host_ids]
-        max_host    = max(host_scores) if host_scores else 0.0
-        mean_host   = statistics.mean(host_scores) if host_scores else 0.0
-
-        # ── Recopilar vulnerabilidades para métricas ──────────
-        vuln_severities: List[str] = []
-
-        with get_session() as session:
-            for host_id in host_ids:
-                ports = session.query(Port).filter_by(host_id=host_id).all()
-                for port in ports:
-                    vulns = session.query(Vulnerability).filter_by(port_id=port.id).all()
-                    for v in vulns:
-                        sev = v.severity.value.upper() if v.severity else "UNKNOWN"
-                        vuln_severities.append(sev)
-
-        # Índice ponderado de severidad (0–10)
-        if vuln_severities:
-            weighted_sum = sum(SEVERITY_WEIGHTS.get(s, 0.1) for s in vuln_severities)
-            weighted_idx = min(weighted_sum / len(vuln_severities) * 10, 10.0)
-        else:
-            weighted_idx = 0.0
-
-        # Ratio de exposición: hosts con score > 0 / total hosts
-        hosts_exposed   = sum(1 for s in host_scores if s > 0)
-        exposure_ratio  = (hosts_exposed / len(host_scores)) * 10 if host_scores else 0.0
-
-        # ── Score global ──────────────────────────────────────
-        global_score = (
-            0.60 * max_host
-            + 0.25 * weighted_idx
-            + 0.15 * exposure_ratio
-        )
-        global_score = round(min(global_score, 10.0), 2)
-
-        severity = Severity.from_cvss(global_score).value.upper()
-
-        # ── Contar por severidad ──────────────────────────────
-        def count_sev(level: str) -> int:
-            return vuln_severities.count(level)
-
-        # Clasificar hosts por severidad de su risk_score
-        def host_sev_count(lo: float, hi: float) -> int:
-            return sum(1 for s in host_scores if lo <= s <= hi)
-
-        summary = ScanRiskSummary(
-            scan_id        = scan_id,
-            risk_score     = global_score,
-            severity       = severity,
-            total_hosts    = len(host_ids),
-            hosts_critical = host_sev_count(9.0, 10.0),
-            hosts_high     = host_sev_count(7.0, 8.9),
-            hosts_medium   = host_sev_count(4.0, 6.9),
-            hosts_low      = host_sev_count(0.1, 3.9),
-            total_vulns    = len(vuln_severities),
-            vulns_critical = count_sev("CRITICAL"),
-            vulns_high     = count_sev("HIGH"),
-            vulns_medium   = count_sev("MEDIUM"),
-            vulns_low      = count_sev("LOW"),
-            exposed_dangerous_ports = self._count_dangerous_ports(host_ids),
-        )
-
-        # ── Actualizar Scan en BD ─────────────────────────────
-        with get_session() as session:
-            scan = session.get(Scan, scan_id)
-            if scan:
-                scan.risk_score  = global_score
-                scan.total_vulns = len(vuln_severities)
-                session.commit()
-
-        logger.info(
-            f"Scan #{scan_id} risk_score = {global_score:.2f} "
-            f"({severity}) — {len(vuln_severities)} CVE(s)"
-        )
-
-        return summary
-
-    # ── Helpers ──────────────────────────────────────────────
-
-    @staticmethod
-    def _count_dangerous_ports(host_ids: List[int]) -> int:
-        """Cuenta el total de puertos peligrosos abiertos en los hosts."""
-        total = 0
-        with get_session() as session:
-            for host_id in host_ids:
-                total += (
-                    session.query(Port)
-                    .filter(
-                        Port.host_id    == host_id,
-                        Port.state      == "open",
-                        Port.is_dangerous == True,
-                    )
-                    .count()
-                )
-        return total
 
     @staticmethod
     def _empty_summary(scan_id: int) -> ScanRiskSummary:
-        """Devuelve un ScanRiskSummary vacío (sin datos)."""
         return ScanRiskSummary(
             scan_id=scan_id, risk_score=0.0, severity="NONE",
             total_hosts=0, hosts_critical=0, hosts_high=0,
@@ -360,42 +246,26 @@ class RiskScorer:
         )
 
 
-# ══════════════════════════════════════════════════════════════
-# FUNCIÓN DE CONVENIENCIA
-# ══════════════════════════════════════════════════════════════
-
 def run_vuln_analysis(scan_id: int) -> ScanRiskSummary:
-    """
-    Ejecuta el análisis completo de vulnerabilidades para una auditoría:
-        1. Correlación CVE (NVD API)
-        2. Cálculo de risk scores (puerto → host → scan)
-
-    Args:
-        scan_id: ID de la auditoría a analizar.
-
-    Returns:
-        ScanRiskSummary con el resumen completo.
-    """
+    """Correlación CVE + risk scoring completo."""
     from .correlator import CVECorrelator
 
-    logger.info(f"Iniciando análisis de vulnerabilidades — scan #{scan_id}")
+    logger.info("Iniciando analisis de vulnerabilidades — scan #" + str(scan_id))
 
-    # Fase 1: Correlación CVE
     correlator = CVECorrelator()
     corr_stats = correlator.correlate_scan(scan_id)
     logger.info(
-        f"Correlación completada — "
-        f"{corr_stats['cves_found']} CVE(s) en "
-        f"{corr_stats['ports_with_vulns']}/{corr_stats['ports_analyzed']} puerto(s)"
+        "Correlacion completada — " +
+        str(corr_stats["cves_found"]) + " CVE(s) en " +
+        str(corr_stats["ports_with_vulns"]) + "/" +
+        str(corr_stats["ports_analyzed"]) + " puerto(s)"
     )
 
-    # Fase 2: Risk scoring
     scorer  = RiskScorer()
     summary = scorer.score_scan(scan_id)
 
     logger.info(
-        f"Risk scoring completado — "
-        f"Score global: {summary.risk_score:.1f}/10 ({summary.severity})"
+        "Risk scoring completado — " +
+        str(summary.risk_score) + "/10 (" + summary.severity + ")"
     )
-
     return summary
